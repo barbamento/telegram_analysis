@@ -1,0 +1,6 @@
+dataset/*
+db/*
+errors/*
+*.csv
+telegram_db/key/*
+*.pyc
