@@ -1,0 +1,12 @@
+{
+    "python.formatting.provider": "black",
+    "python.analysis.typeCheckingMode": "basic",
+    "python.formatting.blackArgs": [
+        "--line-length",
+        "120"
+    ],
+    "editor.formatOnSave": true,
+    "[python]": {
+        "editor.defaultFormatter": null
+    }
+}

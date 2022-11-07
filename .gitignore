@@ -4,3 +4,4 @@ errors/*
 *.csv
 telegram_db/key/*
 *.pyc
+*.session
