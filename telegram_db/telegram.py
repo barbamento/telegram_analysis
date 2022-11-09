@@ -119,7 +119,7 @@ class Telegram_Scraper:
                 shutil.rmtree(f"errors/{i}",ignore_errors=True)
         print("directory loaded & cleaned")
 
-    def dump_channels(self,channel_entity,limit:int=100,safe_mode:bool=True):#riscrivi usando la channel entity al posto del nome
+    def dump_channels(self,channel_entity,limit:int=100,safe_mode:bool=True):
         channel_username=re.sub('/', ' ', channel_entity.title)
         if channel_username=="bestimeline":
             return pd.read_csv("db/bestimeline.csv")
