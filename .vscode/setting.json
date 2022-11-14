@@ -7,6 +7,6 @@
     ],
     "editor.formatOnSave": true,
     "[python]": {
-        "editor.defaultFormatter": null
+        "editor.defaultFormatter": "black"
     }
 }
