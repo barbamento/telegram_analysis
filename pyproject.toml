@@ -12,6 +12,7 @@ pandas = "^1.5.1"
 psycopg2-binary = "^2.9.5"
 Telethon = "^1.25.4"
 SQLAlchemy = "^1.4.43"
+tqdm = "^4.64.1"
 
 
 [build-system]
