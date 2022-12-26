@@ -38,21 +38,28 @@ def processing_only_forwards(results:pd.DataFrame)->pd.DataFrame:
                 raise ValueError("Error in generation of result_lte")
             results_lte.to_csv("result_lte.csv")
     """
-    print(results)
+    results.to_csv("1.csv")
     if not "fwd_from" in results.columns:
+        print("now fwd_from")
         return pd.DataFrame()
     results_lte=pd.DataFrame.from_records(
         results[results["fwd_from"].notna()]["fwd_from"].to_list()
     )
-    print(results_lte)
+    results_lte.to_csv("2.csv")
     if results_lte.empty:
+        print("result_lte empty")
         return pd.DataFrame()
     results_lte_nested=pd.DataFrame.from_records(results_lte[results_lte["from_id"].notna()]["from_id"].to_list())
+    results_lte_nested.to_csv("3.csv")
     if not "channel_id" in results_lte_nested.columns:
+        print("now channel_id")
         return pd.DataFrame()
     results_lte_nested=results_lte_nested[results_lte_nested["channel_id"].notna()]    
+    results_lte_nested.to_csv("4.csv")
     results_lte["from_channel_id"]=results_lte_nested["channel_id"]
+    results_lte.to_csv("5.csv")
     results_lte=results_lte[results_lte["from_channel_id"].notna()]
+    results_lte.to_csv("6.csv")
     return results_lte
 
 class Telegram_Scraper_lte:
@@ -153,23 +160,23 @@ class Telegram_Scraper_lte:
                 )
                 # finding forwarded_messages
                 if not results.empty:
-                    results_lte=result_processing(results)
-                    if not results_lte.empty:
+                    processed_result=result_processing(results)
+                    if not processed_result.empty:
+                        print(results["date"].max(),len(processed_result))
                         if os.path.exists(f"{self.paths['dataset_path']}/fwd_{channel_id}.csv"):
-                            results_lte=results_lte.to_csv(
+                            processed_result=processed_result.to_csv(
                                 f"{self.paths['dataset_path']}/fwd_{channel_id}.csv",
                                 mode='a',
                                 index=False,
                                 header=False,
                             )
                         else:
-                            results_lte.to_csv(
+                            processed_result.to_csv(
                                 f"{self.paths['dataset_path']}/fwd_{channel_id}.csv",
                                 index=False,
                             )
                     keep_on_going=results["id"].min()>=offset-limit
                     offset=results["id"].max()+1+limit
-                    print(results["date"].max())
                 else:
                     keep_on_going=False
                         
