@@ -15,6 +15,46 @@ import re
 from db_interface import database_postgres as db
 from db_interface import columns as db_columns
 
+def processing_only_forwards(results:pd.DataFrame)->pd.DataFrame:
+    """
+    results_lte=results[results["fwd_from"].notna()]
+    results_lte=pd.DataFrame.from_records(results_lte["fwd_from"].to_list())
+    if not results_lte.empty:
+        results_lte_nested=pd.DataFrame.from_records(results_lte[results_lte["from_id"].notna()]["from_id"].to_list())
+        if not results_lte_nested.empty:
+            try:
+                if not "channel_id" in results_lte_nested:
+                    results_lte=pd.DataFrame(columns=results_lte.columns.to_list()+["from_channel_id"])
+                elif "user_id" in results_lte_nested.columns:
+                    results_lte["from_channel_id"]=results_lte_nested[
+                        (results_lte_nested["channel_id"].notna())
+                        &(results_lte_nested["user_id"].isna())
+                    ]["channel_id"]
+                else:
+                    results_lte["from_channel_id"]=results_lte_nested[results_lte_nested["channel_id"].notna()]["channel_id"]
+            except Exception as e:
+                print(e)
+                results_lte.to_csv("errors_tmp.csv")
+                raise ValueError("Error in generation of result_lte")
+            results_lte.to_csv("result_lte.csv")
+    """
+    print(results)
+    if not "fwd_from" in results.columns:
+        return pd.DataFrame()
+    results_lte=pd.DataFrame.from_records(
+        results[results["fwd_from"].notna()]["fwd_from"].to_list()
+    )
+    print(results_lte)
+    if results_lte.empty:
+        return pd.DataFrame()
+    results_lte_nested=pd.DataFrame.from_records(results_lte[results_lte["from_id"].notna()]["from_id"].to_list())
+    if not "channel_id" in results_lte_nested.columns:
+        return pd.DataFrame()
+    results_lte_nested=results_lte_nested[results_lte_nested["channel_id"].notna()]    
+    results_lte["from_channel_id"]=results_lte_nested["channel_id"]
+    results_lte=results_lte[results_lte["from_channel_id"].notna()]
+    return results_lte
+
 class Telegram_Scraper_lte:
     paths={
         "dataset_path":"db",
@@ -62,7 +102,12 @@ class Telegram_Scraper_lte:
             self.downloaded_channels.to_csv(f"{self.paths['dataset_path']}/downloaded_channels.csv",index=False)
         print("directory loaded & cleaned")
 
-    def dump_channels(self,channel_entity,limit:int=100):
+    def dump_channels(
+            self,
+            channel_entity,
+            limit:int=100,
+            result_processing:Callable[[pd.DataFrame],pd.DataFrame]=processing_only_forwards,
+        ):
         channel_username=channel_entity.title
         channel_id=channel_entity.id
         if (
@@ -108,40 +153,23 @@ class Telegram_Scraper_lte:
                 )
                 # finding forwarded_messages
                 if not results.empty:
-                    results_lte=results[results["fwd_from"].notna()]
-                    results_lte=pd.DataFrame.from_records(results_lte["fwd_from"].to_list())
+                    results_lte=result_processing(results)
                     if not results_lte.empty:
-                        results_lte_nested=pd.DataFrame.from_records(results_lte[results_lte["from_id"].notna()]["from_id"].to_list())
-                        if not results_lte_nested.empty:
-                            try:
-                                if not "channel_id" in results_lte_nested:
-                                    results_lte=pd.DataFrame(columns=results_lte.columns+["from_channel_id"])
-                                elif "user_id" in results_lte_nested.columns:
-                                    results_lte["from_channel_id"]=results_lte_nested[
-                                        (results_lte_nested["channel_id"].notna())
-                                        &(results_lte_nested["user_id"].isna())
-                                    ]["channel_id"]
-                                else:
-                                    results_lte["from_channel_id"]=results_lte_nested[results_lte_nested["channel_id"].notna()]["channel_id"]
-                            except Exception as e:
-                                print(e)
-                                results_lte.to_csv("errors_tmp.csv")
-                                raise ValueError("Error in generation of result_lte")
-                            results_lte.to_csv("result_lte.csv")
-                            if os.path.exists(f"{self.paths['dataset_path']}/fwd_{channel_id}.csv"):
-                                results_lte=results_lte.to_csv(
-                                    f"{self.paths['dataset_path']}/fwd_{channel_id}.csv",
-                                    mode='a',
-                                    index=False,
-                                    header=False,
-                                )
-                            else:
-                                results_lte.to_csv(
-                                    f"{self.paths['dataset_path']}/fwd_{channel_id}.csv",
-                                    index=False,
-                                )
+                        if os.path.exists(f"{self.paths['dataset_path']}/fwd_{channel_id}.csv"):
+                            results_lte=results_lte.to_csv(
+                                f"{self.paths['dataset_path']}/fwd_{channel_id}.csv",
+                                mode='a',
+                                index=False,
+                                header=False,
+                            )
+                        else:
+                            results_lte.to_csv(
+                                f"{self.paths['dataset_path']}/fwd_{channel_id}.csv",
+                                index=False,
+                            )
                     keep_on_going=results["id"].min()>=offset-limit
                     offset=results["id"].max()+1+limit
+                    print(results["date"].max())
                 else:
                     keep_on_going=False
                         
@@ -171,12 +199,6 @@ class Telegram_Scraper_lte:
         return channel_entities
 
 if __name__=="__main__":
-    df=pd.read_json("bt_dump.json")
-    df = pd.DataFrame().from_records(df["messages"])
-    print(df.columns)
-    #exit()
-
-
     pm="PoliticalMemes"
     bt="bestimeline"
     Telegram_Scraper_lte(bt)

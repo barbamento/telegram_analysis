@@ -4,5 +4,6 @@ errors/*
 *.csv
 telegram_db/key/*
 *.pyc
-*.session
 prove_offline.py
+*.session-journal
+*.session
