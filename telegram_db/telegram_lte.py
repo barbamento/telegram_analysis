@@ -16,73 +16,60 @@ from db_interface import database_postgres as db
 from db_interface import columns as db_columns
 
 def processing_only_forwards(results:pd.DataFrame)->pd.DataFrame:
-    """
-    results_lte=results[results["fwd_from"].notna()]
-    results_lte=pd.DataFrame.from_records(results_lte["fwd_from"].to_list())
-    if not results_lte.empty:
-        results_lte_nested=pd.DataFrame.from_records(results_lte[results_lte["from_id"].notna()]["from_id"].to_list())
-        if not results_lte_nested.empty:
-            try:
-                if not "channel_id" in results_lte_nested:
-                    results_lte=pd.DataFrame(columns=results_lte.columns.to_list()+["from_channel_id"])
-                elif "user_id" in results_lte_nested.columns:
-                    results_lte["from_channel_id"]=results_lte_nested[
-                        (results_lte_nested["channel_id"].notna())
-                        &(results_lte_nested["user_id"].isna())
-                    ]["channel_id"]
-                else:
-                    results_lte["from_channel_id"]=results_lte_nested[results_lte_nested["channel_id"].notna()]["channel_id"]
-            except Exception as e:
-                print(e)
-                results_lte.to_csv("errors_tmp.csv")
-                raise ValueError("Error in generation of result_lte")
-            results_lte.to_csv("result_lte.csv")
-    """
-    results.to_csv("1.csv")
     if not "fwd_from" in results.columns:
         print("now fwd_from")
         return pd.DataFrame()
     results_lte=pd.DataFrame.from_records(
         results[results["fwd_from"].notna()]["fwd_from"].to_list()
     )
-    results_lte.to_csv("2.csv")
     if results_lte.empty:
-        print("result_lte empty")
+        print(f"{results['date'].max()}result_lte empty")
         return pd.DataFrame()
     results_lte_nested=pd.DataFrame.from_records(results_lte[results_lte["from_id"].notna()]["from_id"].to_list())
-    results_lte_nested.to_csv("3.csv")
     if not "channel_id" in results_lte_nested.columns:
         print("now channel_id")
         return pd.DataFrame()
     results_lte_nested=results_lte_nested[results_lte_nested["channel_id"].notna()]    
-    results_lte_nested.to_csv("4.csv")
     results_lte["from_channel_id"]=results_lte_nested["channel_id"]
-    results_lte.to_csv("5.csv")
     results_lte=results_lte[results_lte["from_channel_id"].notna()]
-    results_lte.to_csv("6.csv")
     return results_lte
 
 class Telegram_Scraper_lte:
     paths={
         "dataset_path":"db",
         "error_path":"errors",
+        "log_path":"logs",
     }
     
     def __init__(self,start_from:Union[str,int],**args):
+        if os.path.exists(f"{self.paths['error_path']}/private.txt"):
+            with open(f"{self.paths['error_path']}/private.txt", "r") as f:
+                self.private_channels = [int(i) for i in f.read().split("\n") if i!=""]
+        else:
+            self.private_channels=[]
         self.inizialization(**args)
+        if os.listdir(self.paths["log_path"])==[]:
+            n_log=0
+        else:
+            n_log=max([int(i.removesuffix(".txt")) for i in os.listdir(self.paths["log_path"])])+1
         with TelegramClient("tmp", API().app_id, API().api_hash) as client:
             channel_entities=[client.get_entity(start_from)]
         channel_name=channel_entities[0].title
         distance_from_start=0
+        downloaded_channels=[]
         main=True
         while main:
             print([i.title for i in channel_entities])
             forwarded_channels=[]
             for public_channel in tqdm(channel_entities):
-                print(f"Working on {public_channel.title}, at distace {distance_from_start} from {channel_name}")
-                self.dump_channels(public_channel)
-                print(f"Channel {public_channel.title} dumped")
-                forwarded_channels+=self.get_forwarded_channels(public_channel)
+                if public_channel.id not in downloaded_channels:
+                    print(f"Working on {public_channel.title}, at distace {distance_from_start} from {channel_name}")
+                    self.dump_channels(public_channel)
+                    downloaded_channels+=[public_channel.id]
+                    with open(f"{self.paths['log_path']}/{n_log}.txt", "a+") as downloaded_list:
+                        downloaded_list.write(f"{public_channel.id}\t{datetime.datetime.now()}\n")
+                    print(f"Channel {public_channel.title} dumped")
+                    forwarded_channels+=self.get_forwarded_channels(public_channel,downloaded_channels)
             if forwarded_channels==[]:
                 print(f"Job's done. Distance reached : {distance_from_start}")
                 raise ValueError("Forwarded channel is empty. No channel to work on")
@@ -121,7 +108,10 @@ class Telegram_Scraper_lte:
             (channel_username in self.downloaded_channels["name"].to_list()) 
             or (channel_id in self.downloaded_channels["id"].to_list())
         ):
-            offset=self.downloaded_channels[self.downloaded_channels["id"]==channel_id]["max_offset"].to_list()[0]+1
+            offset=self.downloaded_channels[
+                (self.downloaded_channels["id"]==channel_id)
+                |(self.downloaded_channels["name"]==channel_username)
+            ]["max_offset"].to_list()[0]+1
         else:
             pd.DataFrame([channel_username,channel_id,str(datetime.datetime.now()),0])
             offset=1+limit
@@ -179,11 +169,10 @@ class Telegram_Scraper_lte:
                     offset=results["id"].max()+1+limit
                 else:
                     keep_on_going=False
-                        
 
-    def get_forwarded_channels(self,channel_entity) -> list[Any]:
+    def get_forwarded_channels(self,channel_entity,downloaded_channels) -> list[Any]:
         channel_id=channel_entity.id
-        downloaded_channels=[int(i.removeprefix("fwd_").removesuffix(".csv")) for i in os.listdir("db") if i.startswith("fwd_")]
+        #downloaded_channels=[int(i.removeprefix("fwd_").removesuffix(".csv")) for i in os.listdir("db") if i.startswith("fwd_")]
         channel_entities=[]
         if os.path.exists(f"{self.paths['dataset_path']}/fwd_{channel_id}.csv"):
             df=pd.read_csv(
@@ -192,9 +181,9 @@ class Telegram_Scraper_lte:
             df=df[df["from_channel_id"].notna()]
             with TelegramClient("tmp", API().app_id, API().api_hash) as client:
                 for i in [int(i) for i in df["from_channel_id"].unique()]:
-                    if not i in downloaded_channels:
+                    if i not in downloaded_channels and i not in self.private_channels:
                         try:
-                            channel_entities+=[client.get_entity(int(i))]
+                            channel_entities+=[client.get_entity(i)]
                         except Exception as e:
                             print(e)
                             if str(e)!=(
@@ -202,7 +191,12 @@ class Telegram_Scraper_lte:
                                 " Another reason may be that you were banned"
                                 " from it (caused by GetChannelsRequest)"
                             ):
-                                exit()
+                                with open(f"{self.paths['error_path']}/failed.txt", "a+") as failed_file:
+                                    failed_file.write(str(i)+"\t\t"+str(e) + "\n")
+                            else:
+                                with open(f"{self.paths['error_path']}/private.txt", "a+") as private_file:
+                                    private_file.write(str(i)+"\n")
+                                    self.private_channels+=[int(i)]
         return channel_entities
 
 if __name__=="__main__":

@@ -7,3 +7,5 @@ telegram_db/key/*
 prove_offline.py
 *.session-journal
 *.session
+logs/*
+bt_wrapped/data/*

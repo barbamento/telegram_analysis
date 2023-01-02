@@ -13,6 +13,8 @@ psycopg2-binary = "^2.9.5"
 Telethon = "^1.25.4"
 SQLAlchemy = "^1.4.43"
 tqdm = "^4.64.1"
+seaborn = "^0.12.2"
+wordcloud = "^1.8.2.2"
 
 
 [build-system]
